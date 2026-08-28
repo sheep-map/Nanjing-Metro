@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>南京轨道交通互动地图</title>
+<style>
+:root{--bg:#111418;--panel:rgba(20,23,28,.92);--text:#f7f7f7;--muted:#c7cbd1;--accent:#f0c874}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Microsoft YaHei","Noto Sans CJK SC",sans-serif}
+.page{max-width:1180px;margin:0 auto;padding:18px}
+.header{display:flex;gap:12px;align-items:end;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+h1{font-size:clamp(22px,3vw,36px);margin:0}
+.hint{color:var(--muted);font-size:14px;margin-top:6px;line-height:1.65}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.controls button{border:1px solid #4a4f58;background:#22262c;color:#fff;border-radius:9px;padding:9px 12px;cursor:pointer;font-size:14px;min-height:40px}
+.controls button:hover,.controls button:focus-visible{border-color:var(--accent);outline:none}
+.zoom-value{min-width:58px;text-align:center;color:#d8dce2;font-size:13px;font-variant-numeric:tabular-nums}
+.map-shell{position:relative;width:100%;aspect-ratio:1200/1642;background:#1b1f24;overflow:hidden;border-radius:14px;border:1px solid #353a42;user-select:none}
+.map-shell.zoomed{cursor:grab}.map-shell.dragging{cursor:grabbing}
+.map-stage{position:absolute;inset:0;transform-origin:0 0;will-change:transform}
+.map-stage.is-animating{transition:transform .34s cubic-bezier(.22,.78,.2,1)}
+.map-stage .base-map,.map-stage svg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.base-map{display:block;pointer-events:none;image-rendering:auto}
+.hotspots{pointer-events:none;overflow:visible}
+.route-vector{fill:none;stroke-width:3.8;stroke-linecap:round;stroke-linejoin:round;opacity:.72;pointer-events:none;vector-effect:non-scaling-stroke}
+.route-glow{fill:none;stroke-width:8.5;stroke-linecap:round;stroke-linejoin:round;opacity:0;pointer-events:none;vector-effect:non-scaling-stroke}
+.route-group:hover .route-glow,.route-group:focus-within .route-glow,.route-group.anim-active .route-glow{opacity:.72}
+.route-hit{fill:none;stroke:transparent;stroke-width:24;stroke-linecap:round;stroke-linejoin:round;pointer-events:stroke;cursor:pointer;vector-effect:non-scaling-stroke}
+.route-marker-halo{fill:none;stroke:#fff;stroke-width:4;opacity:.94;vector-effect:non-scaling-stroke}
+.route-marker-core{stroke:#fff;stroke-width:1.4;vector-effect:non-scaling-stroke}
+.attraction-hit{fill:rgba(255,255,255,.02);stroke:rgba(255,255,255,0);stroke-width:3;pointer-events:all;cursor:pointer;vector-effect:non-scaling-stroke}
+.attraction-hit:hover,.attraction-hit:focus{stroke:#fff;fill:rgba(255,255,255,.12);outline:none}
+.badge{position:absolute;z-index:4;left:14px;top:14px;background:rgba(14,17,21,.82);backdrop-filter:blur(6px);padding:9px 11px;border-radius:9px;font-size:13px;line-height:1.55;pointer-events:none;max-width:350px}
+.popup{position:absolute;z-index:50;pointer-events:auto;width:min(340px,calc(100% - 28px));background:var(--panel);border:1px solid #565c66;border-radius:12px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.30);display:none;min-height:126px}
+.popup.show{display:block}.popup h2{font-size:18px;margin:0 34px 7px 0}.popup p{font-size:14px;color:#e1e4e8;line-height:1.65;margin:0;padding-right:92px;min-height:72px}
+.popup-icon{position:absolute;right:12px;bottom:10px;max-width:82px;max-height:76px;width:auto;height:auto;object-fit:contain;filter:drop-shadow(0 2px 4px rgba(0,0,0,.38));pointer-events:none}
+.close{position:absolute;z-index:2;right:8px;top:8px;border:0;background:transparent;color:#fff;font-size:24px;line-height:1;cursor:pointer;padding:6px 10px;min-width:40px;min-height:40px;touch-action:manipulation}
+.music-panel{margin:0 0 12px;padding:10px 12px;border:1px solid #353a42;border-radius:12px;background:#191d22;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.music-meta{min-width:180px;flex:1 1 260px}.music-title{font-size:14px;font-weight:700;line-height:1.45}.music-sub{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.45}.music-frame{width:330px;max-width:100%;height:86px;border:0;display:block;background:transparent}.music-fallback{font-size:12px;color:#aeb4bc}.music-fallback a{color:#e3c87d;text-decoration:none}.music-fallback a:hover,.music-fallback a:focus-visible{text-decoration:underline}
+.route-list{margin-top:13px;display:flex;flex-wrap:wrap;gap:7px}.route-list a{display:inline-flex;align-items:center;gap:7px;color:#eee;text-decoration:none;border:1px solid #3b4048;border-radius:999px;padding:6px 10px;font-size:13px;background:#1d2126}.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.footer{color:#9da3ac;font-size:12px;margin:12px 2px 0;line-height:1.55}
+@media(max-width:620px){.page{padding:10px}.map-shell{border-radius:9px}.badge{left:8px;top:8px;font-size:11px;max-width:260px}.controls button{padding:8px 10px}.popup{font-size:13px}.popup p{padding-right:78px}.popup-icon{max-width:70px;max-height:66px}.music-panel{padding:9px}.music-frame{width:100%;height:86px}}
+@media(prefers-reduced-motion:reduce){.map-stage.is-animating{transition:none}}
+</style>
+</head>
+<body>
+<main class="page">
+<section class="header">
+  <div>
+    <h1>南京轨道交通互动地图</h1>
+    <div class="hint">鼠标滚轮可缩放，放大后可按住鼠标左键拖动；第一次点击地图线路会自动放大，并由光标沿该线路循环移动；再次点击同一条线路才进入介绍页。点击景点图标会自动放大并显示介绍。</div>
+  </div>
+  <div class="controls" aria-label="地图控制">
+    <button id="zoomOutBtn" type="button" aria-label="缩小地图">−</button>
+    <span class="zoom-value" id="zoomValue" aria-live="polite">100%</span>
+    <button id="zoomInBtn" type="button" aria-label="放大地图">＋</button>
+    <button id="resetBtn" type="button">复位</button>
+    <button id="playBtn" type="button">暂停动画</button>
+    <button id="musicPanelBtn" type="button" aria-expanded="true" aria-controls="musicPanel">收起音乐</button>
+    <button id="hotspotBtn" type="button">隐藏交互提示</button>
+  </div>
+</section>
+<section class="music-panel" id="musicPanel" aria-label="背景音乐播放器">
+  <div class="music-meta">
+    <div class="music-title">背景音乐 · 《秦淮景（艺伎齐唱）》</div>
+    <div class="music-sub">陈其钢 · Qin Huai Legend VII (Geishas' Chorus) · 使用网易云音乐官方在线播放器，可自行播放或暂停。</div>
+    <div class="music-fallback">若播放器因浏览器策略未加载，可 <a href="https://163cn.tv/bd2DgL3z" target="_blank" rel="noopener noreferrer">在网易云音乐打开</a>。</div>
+  </div>
+  <iframe class="music-frame" title="网易云音乐：秦淮景" src="https://music.163.com/outchain/player?type=2&id=27511596&auto=0&height=66" allow="autoplay" loading="lazy"></iframe>
+</section>
+<section class="map-shell" id="mapShell" aria-label="南京轨道交通互动地图">
+  <div class="map-stage" id="mapStage">
+    <img class="base-map" id="baseMap" src="assets/map-base-hd.png" alt="南京轨道交通地图高清底图" draggable="false" decoding="async">
+    <svg id="overlay" class="hotspots" viewBox="0 0 1200 1642" preserveAspectRatio="xMidYMid meet" aria-label="矢量线路动画与地图交互热点"></svg>
+  </div>
+  <div class="badge" id="badge">高清 PSD 底图 · SVG 矢量线路动画<br>滚轮缩放 · 拖动平移 · 线路首次点击聚焦 / 再次点击进入介绍</div>
+  <div class="popup" id="popup" role="dialog" aria-live="polite">
+    <button class="close" id="closePopup" aria-label="关闭">×</button>
+    <h2 id="popupTitle"></h2>
+    <p id="popupText"></p>
+    <img id="popupIcon" class="popup-icon" alt="">
+  </div>
+</section>
+<nav class="route-list" id="routeList" aria-label="线路快捷入口"></nav>
+<p class="footer">说明：地图交互逻辑保持不变；底图使用 PSD 原始 4488×6142 分辨率，线路由 SVG 实时绘制；地图线路采用“首次点击聚焦并沿线移动、再次点击进入介绍”的两段式交互；背景音乐通过网易云音乐官方在线播放器提供，播放/暂停由用户自行控制。</p>
+</main>
+<script src="data.js"></script>
+<script>
+(()=>{
+  const data=window.MAP_DATA;
+  const svg=document.getElementById('overlay');
+  const ns='http://www.w3.org/2000/svg';
+  const shell=document.getElementById('mapShell');
+  const stage=document.getElementById('mapStage');
+  const popup=document.getElementById('popup');
+  const title=document.getElementById('popupTitle');
+  const text=document.getElementById('popupText');
+  const popupIcon=document.getElementById('popupIcon');
+  const zoomValue=document.getElementById('zoomValue');
+  const MIN_SCALE=1;
+  const MAX_SCALE=5;
+  const AUTO_ROUTE_SCALE=2.15;
+  const AUTO_ATTRACTION_SCALE=2.65;
+  let scale=1,panX=0,panY=0,selectedAttraction=null;
+  let drag=null,suppressClickUntil=0,popupTimer=null,navigationTimer=null;
+  let selectedRouteIndex=-1,selectedRouteStartedAt=null;
+
+  const animationItems=[];
+  let animationPaused=false;
+  let animationElapsed=0;
+  let animationLastTime=null;
+  let activeAnimationIndex=-1;
+  const ROUTE_DURATION=1800;
+  const ROUTE_GAP=220;
+  const SELECTED_ROUTE_DURATION=3200;
+
+  function el(n,a={}){const x=document.createElementNS(ns,n);Object.entries(a).forEach(([k,v])=>x.setAttribute(k,v));return x}
+  function dFrom(points){return points.map((p,i)=>(i?'L':'M')+p[0]+' '+p[1]).join(' ')}
+  function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
+  function shellSize(){return {w:shell.clientWidth,h:shell.clientHeight}}
+  function clampPan(x,y,s=scale){const {w,h}=shellSize();return {x:clamp(x,w*(1-s),0),y:clamp(y,h*(1-s),0)}}
+
+  function applyView(animate=false){
+    const p=clampPan(panX,panY,scale);panX=p.x;panY=p.y;
+    stage.classList.toggle('is-animating',animate);
+    stage.style.transform=`translate(${panX}px,${panY}px) scale(${scale})`;
+    shell.classList.toggle('zoomed',scale>1.001);
+    zoomValue.textContent=Math.round(scale*100)+'%';
+    if(selectedAttraction)positionPopup();
+    if(animate)window.setTimeout(()=>stage.classList.remove('is-animating'),380);
+  }
+
+  function setScaleAroundCssPoint(newScale,cx,cy,animate=false){
+    newScale=clamp(newScale,MIN_SCALE,MAX_SCALE);
+    const worldX=(cx-panX)/scale,worldY=(cy-panY)/scale;
+    panX=cx-worldX*newScale;panY=cy-worldY*newScale;scale=newScale;
+    applyView(animate);
+  }
+
+  function focusMapPoint(mapX,mapY,targetScale,animate=true){
+    const {w,h}=shellSize();
+    scale=clamp(Math.max(scale,targetScale),MIN_SCALE,MAX_SCALE);
+    const baseX=mapX/data.width*w,baseY=mapY/data.height*h;
+    panX=w/2-baseX*scale;panY=h/2-baseY*scale;
+    applyView(animate);
+  }
+
+  function resetView(animate=true){scale=1;panX=0;panY=0;selectedAttraction=null;selectedRouteIndex=-1;selectedRouteStartedAt=null;animationTick.selectedElapsed=0;popup.classList.remove('show');applyView(animate)}
+
+  function cssPointToMap(clientX,clientY){
+    const rect=shell.getBoundingClientRect();
+    const localX=clientX-rect.left,localY=clientY-rect.top;
+    const {w,h}=shellSize();
+    return {x:((localX-panX)/scale)/w*data.width,y:((localY-panY)/scale)/h*data.height};
+  }
+
+  function mapPointToCss(mapX,mapY){
+    const {w,h}=shellSize();
+    return {x:(mapX/data.width*w)*scale+panX,y:(mapY/data.height*h)*scale+panY};
+  }
+
+  data.routes.forEach((r,routeIndex)=>{
+    const g=el('g',{class:'route-group'});g.setAttribute('tabindex','-1');
+    const drawablePaths=[];
+    r.paths.forEach(points=>{
+      const d=dFrom(points);
+      const vector=el('path',{d,class:'route-vector',stroke:r.color});
+      const glow=el('path',{d,class:'route-glow',stroke:r.color});
+      const hit=el('path',{d,class:'route-hit','data-id':r.id,'aria-label':r.name});
+      hit.addEventListener('pointerdown',e=>e.stopPropagation());
+      hit.addEventListener('pointerup',e=>e.stopPropagation());
+      hit.addEventListener('click',e=>{
+        e.stopPropagation();
+        if(Date.now()<suppressClickUntil)return;
+
+        // 第二次点击当前已选中的同一条线路：进入介绍页。
+        if(selectedRouteIndex===routeIndex){
+          if(navigationTimer)clearTimeout(navigationTimer);
+          navigationTimer=setTimeout(()=>{location.href='route.html?id='+encodeURIComponent(r.id)},180);
+          return;
+        }
+
+        // 第一次点击（或切换到另一条线路）：仅选中、聚焦并启动该线路上的移动光标。
+        selectedRouteIndex=routeIndex;
+        selectedRouteStartedAt=performance.now();
+        animationTick.selectedElapsed=0;
+        animationLastTime=null;
+        const p=cssPointToMap(e.clientX,e.clientY);
+        focusMapPoint(p.x,p.y,AUTO_ROUTE_SCALE,true);
+        setActiveAnimation(routeIndex);
+        placeMarker(animationItems[routeIndex],0);
+      });
+      g.append(vector,glow,hit);
+      drawablePaths.push(vector);
+    });
+    svg.appendChild(g);
+    animationItems.push({route:r,group:g,paths:drawablePaths,lengths:null,total:0});
+  });
+
+  const marker=el('g',{opacity:'0','aria-hidden':'true'});
+  const markerHalo=el('circle',{r:'7.2',class:'route-marker-halo'});
+  const markerCore=el('circle',{r:'4.8',class:'route-marker-core'});
+  marker.append(markerHalo,markerCore);
+  svg.appendChild(marker);
+
+  data.attractions.forEach(a=>{
+    const c=el('circle',{cx:a.x,cy:a.y,r:Math.max(a.r,16),class:'attraction-hit',tabindex:'0','aria-label':a.name});
+    const open=()=>{
+      if(Date.now()<suppressClickUntil)return;
+      selectedAttraction=a;
+      if(popupTimer)clearTimeout(popupTimer);
+      showPopup(a);
+      focusMapPoint(a.x,a.y,AUTO_ATTRACTION_SCALE,true);
+      popupTimer=setTimeout(()=>positionPopup(),380);
+    };
+    c.addEventListener('pointerdown',e=>e.stopPropagation());
+    c.addEventListener('pointerup',e=>e.stopPropagation());
+    c.addEventListener('click',e=>{e.stopPropagation();open()});
+    c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}});
+    svg.appendChild(c);
+  });
+
+  function ensureMetrics(item){
+    if(item.lengths)return;
+    item.lengths=item.paths.map(p=>p.getTotalLength());
+    item.total=item.lengths.reduce((a,b)=>a+b,0);
+  }
+
+  function setActiveAnimation(index){
+    if(activeAnimationIndex===index)return;
+    if(activeAnimationIndex>=0&&animationItems[activeAnimationIndex])animationItems[activeAnimationIndex].group.classList.remove('anim-active');
+    activeAnimationIndex=index;
+    if(index>=0&&animationItems[index])animationItems[index].group.classList.add('anim-active');
+  }
+
+  function placeMarker(item,ratio){
+    ensureMetrics(item);
+    if(!item.total){marker.setAttribute('opacity','0');return}
+    let distance=clamp(ratio,0,1)*item.total;
+    let path=item.paths[0];
+    for(let i=0;i<item.paths.length;i++){
+      const len=item.lengths[i];
+      if(distance<=len||i===item.paths.length-1){path=item.paths[i];break}
+      distance-=len;
+    }
+    const point=path.getPointAtLength(Math.max(0,Math.min(distance,path.getTotalLength())));
+    marker.setAttribute('transform',`translate(${point.x} ${point.y})`);
+    marker.setAttribute('opacity','1');
+    markerCore.setAttribute('fill',item.route.color);
+  }
+
+  function animationTick(now){
+    if(animationLastTime===null)animationLastTime=now;
+    const dt=Math.min(80,Math.max(0,now-animationLastTime));
+    animationLastTime=now;
+
+    // 用户首次点击线路后，移动光标固定在该线路上循环，直到选中其他线路或进入介绍页。
+    if(selectedRouteIndex>=0){
+      if(selectedRouteStartedAt===null)selectedRouteStartedAt=now;
+      if(animationTick.selectedElapsed===undefined)animationTick.selectedElapsed=0;
+      if(!animationPaused)animationTick.selectedElapsed+=dt;
+      const ratio=(animationTick.selectedElapsed%SELECTED_ROUTE_DURATION)/SELECTED_ROUTE_DURATION;
+      setActiveAnimation(selectedRouteIndex);
+      placeMarker(animationItems[selectedRouteIndex],ratio);
+      requestAnimationFrame(animationTick);
+      return;
+    }
+
+    if(!animationPaused)animationElapsed+=dt;
+    const cycle=ROUTE_DURATION+ROUTE_GAP;
+    const routeCount=animationItems.length;
+    const index=Math.floor(animationElapsed/cycle)%routeCount;
+    const local=animationElapsed%cycle;
+    setActiveAnimation(index);
+    if(local<=ROUTE_DURATION){
+      placeMarker(animationItems[index],local/ROUTE_DURATION);
+    }else{
+      marker.setAttribute('opacity','0');
+    }
+    requestAnimationFrame(animationTick);
+  }
+  requestAnimationFrame(animationTick);
+
+  function showPopup(a){
+    title.textContent=a.name;text.textContent=a.description;
+    popupIcon.src=a.icon||'';popupIcon.alt=a.name+'图标';
+    popupIcon.style.display=a.icon?'block':'none';
+    popup.classList.add('show');positionPopup();
+  }
+
+  function positionPopup(){
+    if(!selectedAttraction||!popup.classList.contains('show'))return;
+    const pt=mapPointToCss(selectedAttraction.x,selectedAttraction.y);
+    const sr=shell.getBoundingClientRect();
+    const pw=Math.min(340,sr.width-28);
+    const ph=Math.max(126,popup.offsetHeight||150);
+    let left=pt.x+18,top=pt.y+18;
+    if(left+pw>sr.width-8)left=Math.max(8,pt.x-pw-18);
+    if(top+ph>sr.height-8)top=Math.max(8,pt.y-ph-18);
+    popup.style.left=left+'px';popup.style.top=top+'px';
+  }
+
+  function closeAttractionPopup(){popup.classList.remove('show');selectedAttraction=null}
+  document.getElementById('closePopup').addEventListener('click',closeAttractionPopup);
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&popup.classList.contains('show'))closeAttractionPopup()});
+
+  shell.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const rect=shell.getBoundingClientRect();
+    const cx=e.clientX-rect.left,cy=e.clientY-rect.top;
+    const factor=Math.exp(-e.deltaY*0.00125);
+    setScaleAroundCssPoint(scale*factor,cx,cy,false);
+  },{passive:false});
+
+  shell.addEventListener('pointerdown',e=>{
+    if(e.target.closest('.popup, .badge, .attraction-hit, .route-hit, button, a, input, select, textarea'))return;
+    if(e.pointerType!=='mouse'||e.button!==0||scale<=1.001)return;
+    drag={id:e.pointerId,startX:e.clientX,startY:e.clientY,lastX:e.clientX,lastY:e.clientY,moved:false};
+    shell.setPointerCapture(e.pointerId);shell.classList.add('dragging');stage.classList.remove('is-animating');
+  });
+
+  popup.addEventListener('pointerdown',e=>e.stopPropagation());
+  popup.addEventListener('pointerup',e=>e.stopPropagation());
+  popup.addEventListener('click',e=>e.stopPropagation());
+  shell.addEventListener('pointermove',e=>{
+    if(!drag||drag.id!==e.pointerId)return;
+    const dx=e.clientX-drag.lastX,dy=e.clientY-drag.lastY;
+    if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>4)drag.moved=true;
+    panX+=dx;panY+=dy;drag.lastX=e.clientX;drag.lastY=e.clientY;applyView(false);
+  });
+  function endDrag(e){
+    if(!drag||drag.id!==e.pointerId)return;
+    if(drag.moved)suppressClickUntil=Date.now()+180;
+    try{shell.releasePointerCapture(e.pointerId)}catch(_e){}
+    drag=null;shell.classList.remove('dragging');
+  }
+  shell.addEventListener('pointerup',endDrag);shell.addEventListener('pointercancel',endDrag);
+
+  document.getElementById('zoomInBtn').addEventListener('click',()=>{const {w,h}=shellSize();setScaleAroundCssPoint(scale*1.3,w/2,h/2,true)});
+  document.getElementById('zoomOutBtn').addEventListener('click',()=>{const {w,h}=shellSize();setScaleAroundCssPoint(scale/1.3,w/2,h/2,true)});
+  document.getElementById('resetBtn').addEventListener('click',()=>resetView(true));
+
+  const playBtn=document.getElementById('playBtn');
+  playBtn.addEventListener('click',()=>{animationPaused=!animationPaused;playBtn.textContent=animationPaused?'播放动画':'暂停动画'});
+
+  const musicPanelBtn=document.getElementById('musicPanelBtn'),musicPanel=document.getElementById('musicPanel');
+  let musicPanelVisible=true;
+  musicPanelBtn.addEventListener('click',()=>{
+    musicPanelVisible=!musicPanelVisible;
+    musicPanel.style.display=musicPanelVisible?'flex':'none';
+    musicPanel.hidden=!musicPanelVisible;
+    musicPanelBtn.textContent=musicPanelVisible?'收起音乐':'展开音乐';
+    musicPanelBtn.setAttribute('aria-expanded',musicPanelVisible?'true':'false');
+  });
+
+  const hotspotBtn=document.getElementById('hotspotBtn'),badge=document.getElementById('badge');let hints=true;
+  hotspotBtn.addEventListener('click',()=>{hints=!hints;badge.style.display=hints?'block':'none';hotspotBtn.textContent=hints?'隐藏交互提示':'显示交互提示'});
+
+  const list=document.getElementById('routeList');
+  data.routes.forEach(r=>{const a=document.createElement('a');a.href='route.html?id='+encodeURIComponent(r.id);a.innerHTML='<span class="dot" style="background:'+r.color+'"></span>'+r.name;list.appendChild(a)});
+
+  window.addEventListener('resize',()=>{applyView(false);positionPopup()});
+  applyView(false);
+})();
+</script>
+</body>
+</html>

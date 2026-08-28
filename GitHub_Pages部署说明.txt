@@ -1,0 +1,52 @@
+《南京轨道交通互动地图》GitHub Pages 发布说明
+
+【重要】
+解压本发布包后，请把“本文件所在目录里的所有文件和文件夹”上传到 GitHub 仓库根目录。
+不要把最外层文件夹再套一层上传，否则 GitHub Pages 首页可能找不到 index.html。
+
+正确的仓库根目录应直接看到：
+  index.html
+  route.html
+  data.js
+  map-data.json
+  assets/
+  .nojekyll
+
+一、创建 GitHub 仓库
+1. 登录 https://github.com/
+2. 右上角“+” → New repository。
+3. Repository name 可填写：jinling-map
+4. 建议选择 Public（GitHub Free 使用 Pages 时最省事）。
+5. 创建仓库。
+
+二、上传网站
+1. 进入刚创建的仓库。
+2. 点击 Add file → Upload files。
+3. 把本发布目录内的所有文件和 assets 文件夹拖入网页。
+4. 等待上传完成后，填写提交说明，例如：Deploy Jinling interactive map
+5. 提交到 main 分支。
+
+三、开启 GitHub Pages
+1. 在仓库中打开 Settings。
+2. 左侧选择 Pages。
+3. 在 Build and deployment / Source 中选择 Deploy from a branch。
+4. Branch 选择 main，Folder 选择 /(root)。
+5. 点击 Save。
+6. 等待数分钟后刷新 Pages 页面，点击 Visit site。
+
+四、你的固定网址
+如果 GitHub 用户名是 USERNAME，仓库名是 jinling-map，则通常网址为：
+https://USERNAME.github.io/jinling-map/
+
+只要以后继续更新同一个仓库，这个网址不需要改变，因此可以生成二维码后长期使用。
+
+五、二维码
+确认手机（特别是微信内置浏览器）可以正常打开最终网址后，再把最终网址生成二维码。
+不要在 GitHub Pages 尚未发布成功前就制作正式印刷二维码。
+
+六、注意事项
+1. GitHub Pages 是公开网页，上传的地图和相关素材可被公网访问。
+2. 当前页面中的网易云音乐播放器依赖联网以及网易云服务本身是否允许嵌入播放；地图主体不依赖它。
+3. GitHub Pages 部署更新可能需要几分钟才生效。
+4. 本包已包含 .nojekyll，避免 GitHub Pages 使用 Jekyll 处理本静态网站。
+5. S6 号线右上角小框中的光标方向已保持为此前确认的反方向版本。
